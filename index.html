@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness Tracker & Rewards</title>
+    <!-- AGGIUNTO: Link al Manifesto PWA -->
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Caricamento di Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Icone di Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        /* Stili Custom per il Fitness Tracker. Tailwind CSS gestisce la maggior parte della stilizzazione. */
+
+        /* Assicuriamo che il corpo usi un font pulito */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* Sfondo leggermente grigio */
+        }
+
+        /* Stile specifico per le card completate (richiesto da script.js) */
+        .card-completed {
+            background-color: #f0fdf4; /* Verde molto chiaro */
+            border-left-color: #10b981; /* Verde smeraldo (500) */
+            opacity: 0.8; /* Leggermente trasparente per indicare il completamento */
+        }
+
+        /* Stile per i bottoni di navigazione attivi, anche se Tailwind lo gestisce */
+        .nav-btn.active {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Fix per l'input number senza frecce (opzionale, ma pulisce l'UI) */
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield; /* Firefox */
+        }
+
+        /* Stile per nascondere le schermate */
+        .app-screen.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header Fisso con Monete -->
+    <header class="bg-white shadow-lg p-4 sticky top-0 z-10">
+        <div class="max-w-3xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-extrabold text-indigo-600 flex items-center">
+                <i data-lucide="activity" class="w-6 h-6 mr-2"></i>
+                Fitness Tracker
+            </h1>
+            <p class="text-lg font-semibold text-gray-800 flex items-center">
+                <i data-lucide="gem" class="w-5 h-5 mr-1 text-yellow-500 fill-yellow-500"></i>
+                Monete: <span id="coins" class="ml-1 text-indigo-600">0</span>
+            </p>
+        </div>
+    </header>
+
+    <!-- Navigazione (Adattata per Mobile) -->
+    <nav class="bg-white border-t border-gray-200 p-2 shadow-inner sticky bottom-0 z-10 md:static md:p-4">
+        <div class="max-w-3xl mx-auto flex justify-around md:justify-start space-x-2">
+            <!-- NOTA: Le funzioni di navigazione sono chiamate direttamente nel contesto globale -->
+            <button class="nav-btn active bg-indigo-500 text-white font-medium py-2 px-4 rounded-full transition duration-150 flex items-center justify-center text-sm md:text-base" onclick="showScreen('weekly-challenges', this)">
+                <i data-lucide="calendar-check" class="w-5 h-5 mr-1"></i> Sfide
+            </button>
+            <button class="nav-btn bg-gray-200 text-gray-700 hover:bg-gray-300 font-medium py-2 px-4 rounded-full transition duration-150 flex items-center justify-center text-sm md:text-base" onclick="showScreen('exercises', this)">
+                <i data-lucide="list-plus" class="w-5 h-5 mr-1"></i> Esercizi
+            </button>
+            <button class="nav-btn bg-gray-200 text-gray-700 hover:bg-gray-300 font-medium py-2 px-4 rounded-full transition duration-150 flex items-center justify-center text-sm md:text-base" onclick="showScreen('rewards', this)">
+                <i data-lucide="gift" class="w-5 h-5 mr-1"></i> Premi
+            </button>
+        </div>
+    </nav>
+
+    <!-- Contenuto Principale -->
+    <main class="flex-grow p-4 md:p-8 max-w-3xl mx-auto w-full mb-20 md:mb-0">
+        <div class="space-y-6">
+
+            <!-- SCREEN: SFIDE SETTIMANALI (Weekly Challenges) - VISIBILE DI DEFAULT -->
+            <div id="weekly-challenges" class="app-screen">
+                <h2 class="text-3xl font-bold mb-4 text-gray-800">Esercizi della Settimana</h2>
+
+                <!-- Bottone per Rigenerare TUTTO -->
+                <button onclick="regenerateAllChallenges()" class="w-full bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-xl shadow-md transition duration-200 mb-6 flex items-center justify-center">
+                    <i data-lucide="refresh-cw" class="w-5 h-5 mr-2"></i>
+                    Rigenera TUTTE le Sfide
+                </button>
+
+                <div id="challengeList" class="space-y-4">
+                    <!-- Le card degli esercizi settimanali verranno renderizzate qui dal JS -->
+                </div>
+            </div>
+
+            <!-- SCREEN: TUTTI GLI ESERCIZI - NASCOSTO INIZIALMENTE -->
+            <div id="exercises" class="app-screen hidden">
+                <h2 class="text-3xl font-bold mb-4 text-gray-800">Gestione Esercizi</h2>
+                
+                <h3 class="text-xl font-semibold mt-6 mb-3 text-gray-700">Lista Completa</h3>
+                <div id="exerciseList" class="space-y-3">
+                    <!-- Lista Esercizi renderizzata qui -->
+                </div>
+
+                <h3 class="text-xl font-semibold mt-8 mb-3 text-gray-700">Aggiungi Nuovo Esercizio</h3>
+                <div class="bg-white p-5 rounded-xl shadow-md space-y-4">
+                    <input id="exTitle" placeholder="Titolo Esercizio" class="border border-gray-300 p-2 rounded-lg w-full focus:ring-indigo-500 focus:border-indigo-500">
+                    <textarea id="exDesc" placeholder="Descrizione dettagliata" class="border border-gray-300 p-2 rounded-lg w-full focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <div class="flex space-x-4">
+                        <select id="exType" class="border border-gray-300 p-2 rounded-lg flex-1">
+                            <option value="short">Breve (10 min)</option>
+                            <option value="long">Medio-lungo (30+ min)</option>
+                        </select>
+                        <input id="exReward" type="number" placeholder="Ricompensa (monete)" class="border border-gray-300 p-2 rounded-lg w-24 text-center focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <button onclick="addExercise()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition duration-200 shadow-lg">
+                        <i data-lucide="plus" class="w-5 h-5 inline-block mr-1"></i> Aggiungi Esercizio
+                    </button>
+                </div>
+            </div>
+
+            <!-- SCREEN: PREMI - NASCOSTO INIZIALMENTE -->
+            <div id="rewards" class="app-screen hidden">
+                <h2 class="text-3xl font-bold mb-4 text-gray-800">Premi Disponibili</h2>
+                <p class="text-lg font-medium text-gray-700 mb-4">Monete disponibili: <span id="coins2" class="text-indigo-600 font-bold">0</span></p>
+
+                <div id="rewardsList" class="space-y-3 mb-8">
+                    <!-- Lista Premi renderizzata qui -->
+                </div>
+
+                <h3 class="text-xl font-semibold mt-6 mb-3 text-gray-700">Aggiungi Nuovo Premio</h3>
+                <div class="bg-white p-5 rounded-xl shadow-md space-y-4">
+                    <input id="rewardTitle" placeholder="Titolo Premio" class="border border-gray-300 p-2 rounded-lg w-full focus:ring-indigo-500 focus:border-indigo-500">
+                    <textarea id="rewardDesc" placeholder="Descrizione del premio" class="border border-gray-300 p-2 rounded-lg w-full focus:ring-indigo-500 focus:border-indigo-500"></textarea>
+                    <input id="rewardCost" type="number" placeholder="Costo in monete" class="border border-gray-300 p-2 rounded-lg w-full focus:ring-indigo-500 focus:border-indigo-500">
+                    <button onclick="addReward()" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition duration-200 shadow-lg">
+                        <i data-lucide="shopping-bag" class="w-5 h-5 inline-block mr-1"></i> Aggiungi Premio
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal per le notifiche (sostituisce alert/confirm) -->
+    <div id="customModal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-sm w-full space-y-4">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800"></h3>
+            <p id="modalMessage" class="text-gray-600"></p>
+            <div id="modalActions" class="flex justify-end space-x-3">
+                <!-- Bottoni generati dinamicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Logica JavaScript -->
+    <script>
+        // --- GESTIONE DATI (USANDO LOCALSTORAGE) ---
+
+        let coins = 0;
+        let exercisesDB = [
+            { title: "Esercizi gambe (Base)", description: "10 minuti di esercizi vari per rinforzare le gambe", type: "short", reward: 5 },
+            { title: "Addominali Mix (Base)", description: "10 minuti di esercizi misti per addominali", type: "short", reward: 5 },
+            { title: "Full Body Soft (Base)", description: "10 minuti di esercizi leggeri per tutto il corpo", type: "short", reward: 5 },
+            { title: "Camminata Veloce (Base)", description: "30 minuti di camminata a ritmo sostenuto", type: "long", reward: 10 },
+            { title: "Cardio Moderato (Base)", description: "35 minuti di cardio leggero", type: "long", reward: 10 }
+        ];
+        let rewards = [
+            { title: "Pizza Night", description: "Serata pizza senza rimorsi", cost: 30 },
+            { title: "Relax Day", description: "Giornata spa casalinga", cost: 50 }
+        ];
+
+        // Struttura dati per le sfide settimanali
+        let weeklyPlan = {
+            short: [], // 3 esercizi brevi
+            long: []   // 1 esercizio lungo
+        };
+
+        const STORAGE_KEY = 'fitnessAppData';
+
+        /** Carica i dati da localStorage */
+        function loadData() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            if (data) {
+                const parsed = JSON.parse(data);
+                coins = parsed.coins || 0;
+                // Mantiene il DB di base se non ci sono dati salvati
+                exercisesDB = parsed.exercisesDB && parsed.exercisesDB.length > 0 ? parsed.exercisesDB : exercisesDB;
+                rewards = parsed.rewards && parsed.rewards.length > 0 ? parsed.rewards : rewards;
+                weeklyPlan = parsed.weeklyPlan || { short: [], long: [] };
+            }
+        }
+
+        /** Salva tutti i dati in localStorage */
+        function saveData() {
+            const data = { coins, exercisesDB, rewards, weeklyPlan };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        }
+
+        // --- GESTIONE MODAL (SOSTITUZIONE ALERT/CONFIRM) ---
+
+        const modal = document.getElementById('customModal');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalMessage = document.getElementById('modalMessage');
+        const modalActions = document.getElementById('modalActions');
+
+        function showModal(title, message, actionsHtml) {
+            if (!modal) return;
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            modalActions.innerHTML = actionsHtml;
+            modal.classList.remove('hidden');
+        }
+
+        function hideModal() {
+            if (!modal) return;
+            modal.classList.add('hidden');
+        }
+
+        /** Mostra un modale di notifica semplice */
+        function showNotificationModal(title, message, closeText = 'Chiudi') {
+            const closeBtn = `<button onclick="hideModal()" class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">${closeText}</button>`;
+            showModal(title, message, closeBtn);
+        }
+
+        /** Mostra un modale di conferma (sostituisce window.confirm) */
+        function showConfirmModal(title, message, onConfirm) {
+            // Definiamo temporaneamente la callback sul window per l'onclick
+            window.tempConfirmCallback = onConfirm;
+
+            const confirmBtn = `<button onclick="tempConfirmCallback(); hideModal();" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Conferma</button>`;
+            const cancelBtn = `<button onclick="hideModal()" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg transition duration-200">Annulla</button>`;
+            
+            showModal(title, message, `${cancelBtn} ${confirmBtn}`);
+        }
+
+        // --- GESTIONE UI E COINS ---
+
+        /** Aggiorna il contatore delle monete in tutte le viste. */
+        function updateCoins() {
+            document.getElementById('coins').textContent = coins;
+            const coins2 = document.getElementById('coins2');
+            if (coins2) {
+                coins2.textContent = coins;
+            }
+            saveData();
+        }
+
+        /**
+         * Gestisce la navigazione tra le schermate e l'attivazione dei bottoni.
+         */
+        function showScreen(screenId, clickedButton) {
+            // Seleziona la nuova classe 'app-screen'
+            document.querySelectorAll('.app-screen').forEach(s => s.classList.add('hidden'));
+            document.getElementById(screenId).classList.remove('hidden');
+
+            // Gestione dei bottoni di navigazione
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active', 'bg-indigo-500', 'text-white'));
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.add('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300'));
+
+            if (clickedButton) {
+                clickedButton.classList.remove('bg-gray-200', 'text-gray-700', 'hover:bg-gray-300');
+                clickedButton.classList.add('active', 'bg-indigo-500', 'text-white');
+            }
+
+            // Carica i contenuti specifici della schermata
+            if (screenId === 'exercises') loadExerciseList();
+            if (screenId === 'rewards') loadRewards();
+            if (screenId === 'weekly-challenges') {
+                if (weeklyPlan.short.length === 0 && weeklyPlan.long.length === 0) {
+                    generateWeeklyPlan(false);
+                }
+                renderWeeklyChallenges();
+            }
+            // Re-inizializza le icone per la nuova schermata
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+
+        // --- GESTIONE SFIDE SETTIMANALI (CHALLENGES) ---
+
+        /**
+         * Rigenera TUTTE le sfide settimanali.
+         */
+        function regenerateAllChallenges(confirmNeeded = true) {
+            const regenerate = () => {
+                generateWeeklyPlan(true); // genera e salva
+                renderWeeklyChallenges();
+                showNotificationModal("Rigenerazione Completata", "Il tuo piano settimanale è stato completamente rigenerato!");
+            };
+
+            if (confirmNeeded) {
+                showConfirmModal("Rigenera Piano", "Sei sicuro di voler rigenerare l'intero piano settimanale? Perderai lo stato di completamento attuale.", regenerate);
+            } else {
+                regenerate();
+            }
+        }
+
+        /** Genera il piano settimanale e lo salva nello stato globale. */
+        function generateWeeklyPlan(shouldOverwrite = false) {
+            if (!shouldOverwrite && weeklyPlan.short.length > 0 && weeklyPlan.long.length > 0) return; // Non rigenerare se già esistente
+
+            const shortDB = exercisesDB.filter(e => e.type === "short");
+            const longDB = exercisesDB.filter(e => e.type === "long");
+
+            if (shortDB.length < 3 || longDB.length < 1) {
+                showNotificationModal("Errore", "Non ci sono abbastanza esercizi 'brevi' (almeno 3) o 'lunghi' (almeno 1) nel database per creare il piano.");
+                return;
+            }
+
+            // Selezione casuale per le 3 sfide brevi
+            const selectedShort = shortDB.sort(() => Math.random() - 0.5).slice(0, 3).map((ex, index) => ({
+                id: `short_${index}`,
+                ...ex,
+                completed: false
+            }));
+
+            // Selezione casuale per la sfida lunga
+            const selectedLong = [{
+                id: 'long_0',
+                ...longDB[Math.floor(Math.random() * longDB.length)],
+                completed: false
+            }];
+
+            weeklyPlan.short = selectedShort;
+            weeklyPlan.long = selectedLong;
+            saveData();
+        }
+
+        /**
+         * Rigenera un singolo esercizio nella sfida.
+         */
+        function regenerateSingleChallenge(id) {
+            showConfirmModal("Rigenera Esercizio", "Vuoi rigenerare questo singolo esercizio? Lo stato di completamento verrà azzerato.", () => {
+                const [type, indexStr] = id.split('_');
+                const index = parseInt(indexStr);
+                
+                const targetDB = exercisesDB.filter(e => e.type === type);
+                
+                if (targetDB.length === 0) {
+                    showNotificationModal("Errore", "Non ci sono esercizi disponibili di questo tipo per la rigenerazione.");
+                    return;
+                }
+                
+                // Scegli un nuovo esercizio casuale
+                let newEx;
+                const randomIndex = Math.floor(Math.random() * targetDB.length);
+                newEx = targetDB[randomIndex];
+                
+                // Aggiorna solo l'elemento specifico
+                weeklyPlan[type][index] = {
+                    id: id,
+                    ...newEx,
+                    completed: false
+                };
+
+                saveData();
+                renderWeeklyChallenges();
+                showNotificationModal("Rigenerato", "L'esercizio è stato cambiato!");
+            });
+        }
+
+        /**
+         * Segna un esercizio come completato, aggiunge monete e aggiorna la UI.
+         */
+        function completeChallenge(id, reward) {
+            const [type, indexStr] = id.split('_');
+            const index = parseInt(indexStr);
+
+            if (weeklyPlan[type][index].completed) return; // Già completato
+
+            weeklyPlan[type][index].completed = true;
+            coins += reward;
+
+            updateCoins();
+            renderWeeklyChallenges();
+            showNotificationModal("Complimenti!", `Hai guadagnato ${reward} monete!`);
+        }
+
+        /** Renderizza le card delle sfide settimanali. */
+        function renderWeeklyChallenges() {
+            const container = document.getElementById('challengeList');
+            if (!container) return;
+            
+            container.innerHTML = ''; // Pulisce il contenitore
+
+            // Combina short e long in un unico array ordinato per il rendering
+            const allChallenges = [
+                ...weeklyPlan.short.map(ex => ({ ...ex, group: 'Attività Brevi' })),
+                ...weeklyPlan.long.map(ex => ({ ...ex, group: 'Attività Lunghe' }))
+            ];
+            
+            let currentGroup = '';
+
+            allChallenges.forEach(ex => {
+                const isCompleted = ex.completed;
+
+                // Aggiunge un sottotitolo se il gruppo cambia
+                if (ex.group !== currentGroup) {
+                    container.innerHTML += `<h3 class="text-2xl font-semibold mt-6 mb-3 text-gray-700 border-b pb-1">${ex.group}</h3>`;
+                    currentGroup = ex.group;
+                }
+
+                // Classi Tailwind dinamiche per lo styling
+                const cardClasses = isCompleted
+                    ? "card-completed"
+                    : "bg-white border-l-4 border-indigo-500 hover:shadow-xl transition duration-300";
+
+                const completeBtnClasses = isCompleted
+                    ? "bg-green-500 cursor-not-allowed"
+                    : "bg-indigo-600 hover:bg-indigo-700";
+                
+                const completeBtnText = isCompleted ? 'Completato!' : 'Completa';
+                const icon = isCompleted ? 'check-circle' : 'flag';
+
+                const cardHtml = `
+                    <div class="card p-5 rounded-xl shadow-md ${cardClasses}">
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h4 class="text-xl font-bold ${isCompleted ? 'text-green-800' : 'text-gray-900'}">${ex.title}</h4>
+                                <p class="text-gray-500 italic text-sm">${ex.description}</p>
+                            </div>
+                            <span class="flex-shrink-0 text-sm font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 ml-4 flex items-center">
+                                ${ex.reward} <i data-lucide="gem" class="w-4 h-4 inline-block align-text-bottom fill-yellow-500 ml-1"></i>
+                            </span>
+                        </div>
+                        
+                        <div class="flex space-x-3 mt-4">
+                            <!-- Bottone Rigenera Singolo -->
+                            <button
+                                onclick="regenerateSingleChallenge('${ex.id}')"
+                                class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
+                                ${isCompleted ? 'disabled' : ''}
+                                title="${isCompleted ? 'Esercizio già completato' : 'Rigenera solo questo esercizio'}"
+                            >
+                                <i data-lucide="shuffle" class="w-4 h-4 inline-block mr-1"></i>
+                                Rigenera
+                            </button>
+
+                            <!-- Bottone Completa -->
+                            <button
+                                onclick="${isCompleted ? '' : `completeChallenge('${ex.id}', ${ex.reward})`}"
+                                class="flex-1 ${completeBtnClasses} text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
+                                ${isCompleted ? 'disabled' : ''}
+                            >
+                                <i data-lucide="${icon}" class="w-4 h-4 inline-block mr-1"></i>
+                                ${completeBtnText}
+                            </button>
+                        </div>
+                    </div>
+                `;
+                container.innerHTML += cardHtml;
+            });
+
+            // Re-inizializza le icone per il nuovo HTML
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+
+        // --- GESTIONE ESERCIZI (EXERCISES) ---
+
+        /** Carica la lista completa degli esercizi */
+        function loadExerciseList() {
+            const list = document.getElementById("exerciseList");
+            if (!list) return;
+
+            list.innerHTML = "";
+            exercisesDB.forEach((ex, i) => {
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 border-gray-400">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="text-lg font-bold">${ex.title}</h4>
+                                <p class="text-gray-600 text-sm">${ex.description}</p>
+                                <p class="text-xs mt-1 font-medium text-indigo-600">Tipo: ${ex.type} - Ricompensa: ${ex.reward} monete</p>
+                            </div>
+                            <button onclick='deleteExercise(${i})' class="flex-shrink-0 ml-4 text-red-500 hover:text-red-700 transition">
+                                <i data-lucide="trash-2" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            });
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+
+        /**
+         * Aggiunge un nuovo esercizio al database
+         */
+        function addExercise() {
+            const title = document.getElementById("exTitle").value.trim();
+            const desc = document.getElementById("exDesc").value.trim();
+            const type = document.getElementById("exType").value;
+            const reward = parseInt(document.getElementById("exReward").value);
+
+            if (!title || !desc || isNaN(reward) || reward <= 0) {
+                 showNotificationModal("Attenzione", "Si prega di compilare tutti i campi in modo valido.");
+                return;
+            }
+
+            exercisesDB.push({ title, description: desc, type, reward });
+            document.getElementById("exTitle").value = '';
+            document.getElementById("exDesc").value = '';
+            document.getElementById("exReward").value = '';
+            
+            saveData();
+            loadExerciseList();
+            
+            // Rigenera il piano per includere la nuova opzione (non rigeneriamo tutto ogni volta)
+            generateWeeklyPlan(true); 
+            showNotificationModal("Successo", `Esercizio "${title}" aggiunto!`);
+        }
+
+        /**
+         * Elimina un esercizio dal database
+         */
+        function deleteExercise(index) {
+            showConfirmModal("Elimina Esercizio", `Sei sicuro di voler eliminare l'esercizio "${exercisesDB[index].title}"?`, () => {
+                exercisesDB.splice(index, 1);
+                saveData();
+                loadExerciseList();
+                // Rigeneriamo il piano per evitare che una sfida punti a un esercizio inesistente
+                generateWeeklyPlan(true); 
+                showNotificationModal("Eliminato", "Esercizio eliminato con successo. Le sfide sono state rigenerate.");
+            });
+        }
+
+        // --- GESTIONE PREMI (REWARDS) ---
+
+        /** Carica la lista dei premi */
+        function loadRewards() {
+            const list = document.getElementById("rewardsList");
+            if (!list) return;
+
+            list.innerHTML = "";
+            rewards.forEach((r, i) => {
+                const canRedeem = coins >= r.cost;
+                const redeemBtnClasses = canRedeem 
+                    ? "bg-green-500 hover:bg-green-600 text-white" 
+                    : "bg-gray-300 text-gray-500 cursor-not-allowed";
+                
+                // Variabile per il bottone di eliminazione
+                const deleteBtn = `
+                    <button 
+                        onclick='deleteReward(${i})' 
+                        class="flex-shrink-0 text-red-500 hover:text-red-700 transition p-2 rounded-full hover:bg-red-100"
+                        title="Elimina Premio"
+                    >
+                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                    </button>
+                `;
+
+                list.innerHTML += `
+                    <div class="bg-white p-4 rounded-xl shadow-sm border-l-4 ${canRedeem ? 'border-green-500' : 'border-gray-300'}">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h4 class="text-lg font-bold">${r.title}</h4>
+                                <p class="text-gray-600 text-sm">${r.description}</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <!-- Bottone Elimina -->
+                                ${deleteBtn}
+                                
+                                <button 
+                                    onclick="${canRedeem ? `redeem(${i})` : ''}" 
+                                    class="flex-shrink-0 py-2 px-4 rounded-lg font-semibold transition duration-200 text-sm ${redeemBtnClasses}"
+                                    ${!canRedeem ? 'disabled' : ''}
+                                >
+                                    Riscatta (${r.cost})
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            updateCoins();
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+
+        /**
+         * Riscatta un premio
+         */
+        function redeem(i) {
+            if (coins >= rewards[i].cost) {
+                showConfirmModal("Riscatta Premio", `Vuoi spendere ${rewards[i].cost} monete per riscattare "${rewards[i].title}"?`, () => {
+                    coins -= rewards[i].cost;
+                    updateCoins();
+                    loadRewards();
+                    showNotificationModal("Riscatto Effettuato", `Hai riscattato "${rewards[i].title}"! Goditelo!`);
+                });
+            }
+        }
+
+        /**
+         * Elimina un premio dal database
+         */
+        function deleteReward(index) {
+            showConfirmModal("Elimina Premio", `Sei sicuro di voler eliminare il premio "${rewards[index].title}"?`, () => {
+                rewards.splice(index, 1);
+                saveData();
+                loadRewards();
+                showNotificationModal("Eliminato", "Premio eliminato con successo.");
+            });
+        }
+
+        /**
+         * Aggiunge un nuovo premio
+         */
+        function addReward() {
+            const title = document.getElementById("rewardTitle").value.trim();
+            const desc = document.getElementById("rewardDesc").value.trim();
+            const cost = parseInt(document.getElementById("rewardCost").value);
+
+            if (!title || !desc || isNaN(cost) || cost <= 0) {
+                 showNotificationModal("Attenzione", "Si prega di compilare tutti i campi in modo valido.");
+                return;
+            }
+
+            rewards.push({ title, description: desc, cost });
+            document.getElementById("rewardTitle").value = '';
+            document.getElementById("rewardDesc").value = '';
+            document.getElementById("rewardCost").value = '';
+
+            saveData();
+            loadRewards();
+            showNotificationModal("Successo", `Premio "${title}" aggiunto!`);
+        }
+
+        // --- INIZIALIZZAZIONE ---
+
+        /** Funzione chiamata all'avvio dell'app. */
+        function initializeApp() {
+            loadData();
+            
+            // Assicurati che il piano sia generato la prima volta
+            generateWeeklyPlan(false);
+            
+            // Mostra la schermata iniziale (Sfide Settimanali).
+            const initialButton = document.querySelector('.nav-btn.active');
+            
+            // Avvia la schermata predefinita (Sfide Settimanali)
+            showScreen('weekly-challenges', initialButton); 
+            
+            updateCoins();
+            // Inizializza le icone una volta che il contenuto è stato generato.
+            if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                lucide.createIcons();
+            }
+        }
+
+        // Avvia l'app al caricamento completo della pagina
+        window.onload = initializeApp;
+
+        // --- REGISTRAZIONE SERVICE WORKER (PWA) ---
+        // Questo permette all'app di essere installata e potenzialmente funzionare offline.
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registrato con successo:', registration.scope);
+                    })
+                    .catch(error => {
+                        console.log('Registrazione ServiceWorker fallita:', error);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
