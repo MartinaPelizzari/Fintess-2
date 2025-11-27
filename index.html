@@ -4,8 +4,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fitness Tracker & Rewards</title>
-    <!-- AGGIUNTO: Link al Manifesto PWA -->
+    
+    <!-- PWA CORE: IL MANIFESTO è FONDAMENTALE PER L'INSTALLAZIONE -->
     <link rel="manifest" href="manifest.json">
+    <!-- PWA CORE: ICONA PER iOS (Apple) -->
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/4f46e5/ffffff?text=FT">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black">
+    <meta name="apple-mobile-web-app-title" content="FitRewards">
     
     <!-- Caricamento di Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -666,7 +672,8 @@
         // Questo permette all'app di essere installata e potenzialmente funzionare offline.
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('service-worker.js')
+                // Il percorso deve essere relativo alla root del sito GitHub Pages
+                navigator.serviceWorker.register('service-worker.js', { scope: './' })
                     .then(registration => {
                         console.log('ServiceWorker registrato con successo:', registration.scope);
                     })

@@ -1,10 +1,10 @@
 {
-    "name": "Fitness Tracker Privato",
-    "short_name": "MyFitness",
-    "description": "App di tracciamento fitness e ricompense per uso personale.",
-    "start_url": "/",
+    "name": "Fitness Tracker & Rewards",
+    "short_name": "FitRewards",
+    "description": "Traccia esercizi e riscatta premi. Funziona offline.",
+    "start_url": "./index.html",
     "display": "standalone",
-    "background_color": "#ffffff",
+    "background_color": "#f3f4f6",
     "theme_color": "#4f46e5",
     "icons": [
         {
