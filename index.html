@@ -185,8 +185,8 @@
 
         // Struttura dati per le sfide settimanali
         let weeklyPlan = {
-            short: [], // 3 esercizi brevi
-            long: []   // 1 esercizio lungo
+            short: [], // Esercizi brevi
+            long: []   // Esercizi lunghi
         };
 
         const STORAGE_KEY = 'fitnessAppData';
@@ -280,8 +280,9 @@
             if (screenId === 'exercises') loadExerciseList();
             if (screenId === 'rewards') loadRewards();
             if (screenId === 'weekly-challenges') {
+                // Se il piano è vuoto, lo generiamo con i conteggi di default (3 brevi, 1 lunga)
                 if (weeklyPlan.short.length === 0 && weeklyPlan.long.length === 0) {
-                    generateWeeklyPlan(false);
+                    generateWeeklyPlan(3, 1, false);
                 }
                 renderWeeklyChallenges();
             }
@@ -294,13 +295,19 @@
         // --- GESTIONE SFIDE SETTIMANALI (CHALLENGES) ---
 
         /**
-         * Rigenera TUTTE le sfide settimanali.
+         * Rigenera TUTTE le sfide settimanali, mantenendo il conteggio attuale.
          */
         function regenerateAllChallenges(confirmNeeded = true) {
             const regenerate = () => {
-                generateWeeklyPlan(true); // genera e salva
+                // Ottiene il conteggio attuale delle sfide (e.g., 4 brevi, 1 lunga)
+                const currentShortCount = weeklyPlan.short.length; 
+                const currentLongCount = weeklyPlan.long.length; 
+
+                // Chiama la funzione di generazione con i conteggi attuali (sovrascrivendo)
+                generateWeeklyPlan(currentShortCount, currentLongCount, true); 
+                
                 renderWeeklyChallenges();
-                showNotificationModal("Rigenerazione Completata", "Il tuo piano settimanale è stato completamente rigenerato!");
+                showNotificationModal("Rigenerazione Completata", "Il tuo piano settimanale è stato completamente rigenerato, mantenendo il numero attuale di sfide!");
             };
 
             if (confirmNeeded) {
@@ -310,36 +317,117 @@
             }
         }
 
-        /** Genera il piano settimanale e lo salva nello stato globale. */
-        function generateWeeklyPlan(shouldOverwrite = false) {
-            if (!shouldOverwrite && weeklyPlan.short.length > 0 && weeklyPlan.long.length > 0) return; // Non rigenerare se già esistente
+        /**
+         * Genera il piano settimanale con conteggi specifici e lo salva nello stato globale.
+         * @param {number} shortCount - Numero di sfide brevi da generare.
+         * @param {number} longCount - Numero di sfide lunghe da generare.
+         * @param {boolean} shouldOverwrite - Forza la sovrascrittura.
+         */
+        function generateWeeklyPlan(shortCount = 3, longCount = 1, shouldOverwrite = false) {
+            
+            // Non rigenerare se già esistente e non richiesto
+            if (!shouldOverwrite && weeklyPlan.short.length === shortCount && weeklyPlan.long.length === longCount) return; 
 
-            const shortDB = exercisesDB.filter(e => e.type === "short");
-            const longDB = exercisesDB.filter(e => e.type === "long");
+            const shortTemplates = exercisesDB.filter(e => e.type === "short");
+            const longTemplates = exercisesDB.filter(e => e.type === "long");
 
-            if (shortDB.length < 3 || longDB.length < 1) {
-                showNotificationModal("Errore", "Non ci sono abbastanza esercizi 'brevi' (almeno 3) o 'lunghi' (almeno 1) nel database per creare il piano.");
+            if (shortTemplates.length === 0 && longTemplates.length === 0) {
+                // Se non c'è nulla nel DB
+                weeklyPlan.short = [];
+                weeklyPlan.long = [];
+                saveData();
                 return;
             }
+            
+            // --- LOGICA DI SELEZIONE CASUALE AGGIORNATA ---
+            
+            const selectedShort = [];
+            for (let i = 0; i < shortCount; i++) {
+                if (shortTemplates.length > 0) {
+                    // Seleziona casualmente un template dal DB (accetta duplicati)
+                    const randomIndex = Math.floor(Math.random() * shortTemplates.length);
+                    selectedShort.push({
+                        id: `short_${i}`, // Nuovo ID basato sul nuovo indice
+                        ...shortTemplates[randomIndex],
+                        completed: false
+                    });
+                }
+            }
 
-            // Selezione casuale per le 3 sfide brevi
-            const selectedShort = shortDB.sort(() => Math.random() - 0.5).slice(0, 3).map((ex, index) => ({
-                id: `short_${index}`,
-                ...ex,
-                completed: false
-            }));
-
-            // Selezione casuale per la sfida lunga
-            const selectedLong = [{
-                id: 'long_0',
-                ...longDB[Math.floor(Math.random() * longDB.length)],
-                completed: false
-            }];
+            const selectedLong = [];
+            for (let i = 0; i < longCount; i++) {
+                if (longTemplates.length > 0) {
+                    // Seleziona casualmente un template dal DB (accetta duplicati)
+                    const randomIndex = Math.floor(Math.random() * longTemplates.length);
+                    selectedLong.push({
+                        id: `long_${i}`, // Nuovo ID basato sul nuovo indice
+                        ...longTemplates[randomIndex],
+                        completed: false
+                    });
+                }
+            }
+            // --- FINE LOGICA AGGIORNATA ---
 
             weeklyPlan.short = selectedShort;
             weeklyPlan.long = selectedLong;
             saveData();
         }
+        
+        /**
+         * Aggiunge un nuovo esercizio casuale del tipo specificato al piano settimanale.
+         * @param {('short'|'long')} type - Tipo di esercizio da aggiungere.
+         */
+        function addChallengeToPlan(type) {
+            const targetDB = exercisesDB.filter(e => e.type === type);
+
+            if (targetDB.length === 0) {
+                showNotificationModal("Errore", `Nessun esercizio di tipo '${type === 'short' ? 'breve' : 'lungo'}' disponibile nel database.`);
+                return;
+            }
+
+            // Scegli un nuovo esercizio casuale
+            const randomIndex = Math.floor(Math.random() * targetDB.length);
+            const newExTemplate = targetDB[randomIndex];
+            
+            // Genera un ID basato sulla lunghezza attuale dell'array
+            const newIndex = weeklyPlan[type].length;
+            const newId = `${type}_${newIndex}`;
+
+            const newChallenge = {
+                id: newId,
+                ...newExTemplate,
+                completed: false
+            };
+
+            weeklyPlan[type].push(newChallenge);
+            saveData();
+            renderWeeklyChallenges();
+            showNotificationModal("Aggiunto", `Un nuovo esercizio '${newExTemplate.title}' è stato aggiunto al tuo piano.`);
+        }
+        
+        /**
+         * Rimuove l'ultimo esercizio del tipo specificato dal piano settimanale.
+         * @param {('short'|'long')} type - Tipo di esercizio da rimuovere.
+         */
+        function removeChallengeFromPlan(type) {
+            // Permettiamo di rimuovere fino a zero, ma avvertiamo
+            if (weeklyPlan[type].length === 0) {
+                const typeName = type === 'short' ? 'breve' : 'lungo';
+                showNotificationModal("Attenzione", `Non ci sono esercizi di tipo '${typeName}' da rimuovere.`);
+                return;
+            }
+
+            showConfirmModal("Rimuovi Esercizio", `Sei sicuro di voler rimuovere l'ultimo esercizio di tipo '${type === 'short' ? 'breve' : 'lungo'}'?`, () => {
+                const removed = weeklyPlan[type].pop();
+                
+                saveData();
+                renderWeeklyChallenges();
+                if (removed) {
+                    showNotificationModal("Rimosso", `L'esercizio '${removed.title}' è stato rimosso dal tuo piano.`);
+                }
+            });
+        }
+
 
         /**
          * Rigenera un singolo esercizio nella sfida.
@@ -363,7 +451,8 @@
                 
                 // Aggiorna solo l'elemento specifico
                 weeklyPlan[type][index] = {
-                    id: id,
+                    // Mantiene l'ID originale (fondamentale per i riferimenti in array)
+                    id: id, 
                     ...newEx,
                     completed: false
                 };
@@ -391,6 +480,37 @@
             showNotificationModal("Complimenti!", `Hai guadagnato ${reward} monete!`);
         }
 
+        /**
+         * Helper per generare l'intestazione della sezione con i bottoni Aggiungi/Rimuovi.
+         */
+        function getGroupHeaderHtml(groupName, planType) {
+            const addIcon = planType === 'short' ? 'clock' : 'fast-forward'; // Icona appropriata
+
+            return `
+                <div class="flex justify-between items-center mt-6 mb-3 border-b pb-1">
+                    <h3 class="text-2xl font-semibold text-gray-700">${groupName}</h3>
+                    <div class="flex space-x-2">
+                        <!-- Bottone Rimuovi -->
+                        <button
+                            onclick="removeChallengeFromPlan('${planType}')"
+                            class="bg-red-400 hover:bg-red-500 text-white p-2 rounded-lg text-sm transition duration-200 shadow-md flex items-center"
+                            title="Rimuovi l'ultimo esercizio di questo tipo"
+                        >
+                            <i data-lucide="minus" class="w-4 h-4"></i>
+                        </button>
+                        <!-- Bottone Aggiungi -->
+                        <button
+                            onclick="addChallengeToPlan('${planType}')"
+                            class="bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-lg text-sm transition duration-200 shadow-md flex items-center"
+                            title="Aggiungi un esercizio casuale di questo tipo"
+                        >
+                            <i data-lucide="plus" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
         /** Renderizza le card delle sfide settimanali. */
         function renderWeeklyChallenges() {
             const container = document.getElementById('challengeList');
@@ -398,72 +518,76 @@
             
             container.innerHTML = ''; // Pulisce il contenitore
 
-            // Combina short e long in un unico array ordinato per il rendering
-            const allChallenges = [
-                ...weeklyPlan.short.map(ex => ({ ...ex, group: 'Attività Brevi' })),
-                ...weeklyPlan.long.map(ex => ({ ...ex, group: 'Attività Lunghe' }))
+            // Definisco i gruppi di sfide da renderizzare
+            const groups = [
+                { type: 'short', name: 'Attività Brevi' },
+                { type: 'long', name: 'Attività Lunghe' }
             ];
             
-            let currentGroup = '';
+            groups.forEach(group => {
+                // Aggiungo l'intestazione con i bottoni Aggiungi/Rimuovi
+                container.innerHTML += getGroupHeaderHtml(group.name, group.type);
 
-            allChallenges.forEach(ex => {
-                const isCompleted = ex.completed;
-
-                // Aggiunge un sottotitolo se il gruppo cambia
-                if (ex.group !== currentGroup) {
-                    container.innerHTML += `<h3 class="text-2xl font-semibold mt-6 mb-3 text-gray-700 border-b pb-1">${ex.group}</h3>`;
-                    currentGroup = ex.group;
+                const challenges = weeklyPlan[group.type];
+                
+                if (challenges.length === 0) {
+                    container.innerHTML += `<p class="text-gray-500 italic p-3 bg-white rounded-xl">Nessuna sfida attiva di tipo ${group.name.toLowerCase()}. Usa il bottone '+' per aggiungerne una.</p>`;
                 }
 
-                // Classi Tailwind dinamiche per lo styling
-                const cardClasses = isCompleted
-                    ? "card-completed"
-                    : "bg-white border-l-4 border-indigo-500 hover:shadow-xl transition duration-300";
+                // Renderizza le singole card di sfida
+                challenges.forEach(ex => {
+                    const isCompleted = ex.completed;
 
-                const completeBtnClasses = isCompleted
-                    ? "bg-green-500 cursor-not-allowed"
-                    : "bg-indigo-600 hover:bg-indigo-700";
-                
-                const completeBtnText = isCompleted ? 'Completato!' : 'Completa';
-                const icon = isCompleted ? 'check-circle' : 'flag';
+                    // Classi Tailwind dinamiche per lo styling
+                    const cardClasses = isCompleted
+                        ? "card-completed"
+                        : "bg-white border-l-4 border-indigo-500 hover:shadow-xl transition duration-300";
 
-                const cardHtml = `
-                    <div class="card p-5 rounded-xl shadow-md ${cardClasses}">
-                        <div class="flex items-start justify-between">
-                            <div>
-                                <h4 class="text-xl font-bold ${isCompleted ? 'text-green-800' : 'text-gray-900'}">${ex.title}</h4>
-                                <p class="text-gray-500 italic text-sm">${ex.description}</p>
+                    const completeBtnClasses = isCompleted
+                        ? "bg-green-500 cursor-not-allowed"
+                        : "bg-indigo-600 hover:bg-indigo-700";
+                    
+                    const completeBtnText = isCompleted ? 'Completato!' : 'Completa';
+                    const icon = isCompleted ? 'check-circle' : 'flag';
+
+                    const cardHtml = `
+                        <div class="card p-5 rounded-xl shadow-md ${cardClasses}">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <h4 class="text-xl font-bold ${isCompleted ? 'text-green-800' : 'text-gray-900'}">${ex.title}</h4>
+                                    <p class="text-gray-500 italic text-sm">${ex.description}</p>
+                                </div>
+                                <span class="flex-shrink-0 text-sm font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 ml-4 flex items-center">
+                                    ${ex.reward} <i data-lucide="gem" class="w-4 h-4 inline-block align-text-bottom fill-yellow-500 ml-1"></i>
+                                </span>
                             </div>
-                            <span class="flex-shrink-0 text-sm font-semibold px-3 py-1 rounded-full bg-yellow-100 text-yellow-700 ml-4 flex items-center">
-                                ${ex.reward} <i data-lucide="gem" class="w-4 h-4 inline-block align-text-bottom fill-yellow-500 ml-1"></i>
-                            </span>
-                        </div>
-                        
-                        <div class="flex space-x-3 mt-4">
-                            <!-- Bottone Rigenera Singolo -->
-                            <button
-                                onclick="regenerateSingleChallenge('${ex.id}')"
-                                class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
-                                ${isCompleted ? 'disabled' : ''}
-                                title="${isCompleted ? 'Esercizio già completato' : 'Rigenera solo questo esercizio'}"
-                            >
-                                <i data-lucide="shuffle" class="w-4 h-4 inline-block mr-1"></i>
-                                Rigenera
-                            </button>
+                            
+                            <div class="flex space-x-3 mt-4">
+                                <!-- Bottone Rigenera Singolo -->
+                                <button
+                                    onclick="regenerateSingleChallenge('${ex.id}')"
+                                    class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-medium py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
+                                    ${isCompleted ? 'disabled' : ''}
+                                    title="${isCompleted ? 'Esercizio già completato' : 'Rigenera solo questo esercizio'}"
+                                >
+                                    <i data-lucide="shuffle" class="w-4 h-4 inline-block mr-1"></i>
+                                    Rigenera
+                                </button>
 
-                            <!-- Bottone Completa -->
-                            <button
-                                onclick="${isCompleted ? '' : `completeChallenge('${ex.id}', ${ex.reward})`}"
-                                class="flex-1 ${completeBtnClasses} text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
-                                ${isCompleted ? 'disabled' : ''}
-                            >
-                                <i data-lucide="${icon}" class="w-4 h-4 inline-block mr-1"></i>
-                                ${completeBtnText}
-                            </button>
+                                <!-- Bottone Completa -->
+                                <button
+                                    onclick="${isCompleted ? '' : `completeChallenge('${ex.id}', ${ex.reward})`}"
+                                    class="flex-1 ${completeBtnClasses} text-white font-semibold py-2 px-4 rounded-lg shadow transition duration-200 text-sm disabled:opacity-50"
+                                    ${isCompleted ? 'disabled' : ''}
+                                >
+                                    <i data-lucide="${icon}" class="w-4 h-4 inline-block mr-1"></i>
+                                    ${completeBtnText}
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                `;
-                container.innerHTML += cardHtml;
+                    `;
+                    container.innerHTML += cardHtml;
+                });
             });
 
             // Re-inizializza le icone per il nuovo HTML
@@ -523,7 +647,11 @@
             loadExerciseList();
             
             // Rigenera il piano per includere la nuova opzione (non rigeneriamo tutto ogni volta)
-            generateWeeklyPlan(true); 
+            // Manteniamo il conteggio attuale del piano
+            const currentShortCount = weeklyPlan.short.length > 0 ? weeklyPlan.short.length : 3;
+            const currentLongCount = weeklyPlan.long.length > 0 ? weeklyPlan.long.length : 1;
+            generateWeeklyPlan(currentShortCount, currentLongCount, true);
+            
             showNotificationModal("Successo", `Esercizio "${title}" aggiunto!`);
         }
 
@@ -536,7 +664,10 @@
                 saveData();
                 loadExerciseList();
                 // Rigeneriamo il piano per evitare che una sfida punti a un esercizio inesistente
-                generateWeeklyPlan(true); 
+                // Manteniamo il conteggio attuale.
+                const currentShortCount = weeklyPlan.short.length > 0 ? weeklyPlan.short.length : 3;
+                const currentLongCount = weeklyPlan.long.length > 0 ? weeklyPlan.long.length : 1;
+                generateWeeklyPlan(currentShortCount, currentLongCount, true); 
                 showNotificationModal("Eliminato", "Esercizio eliminato con successo. Le sfide sono state rigenerate.");
             });
         }
@@ -649,8 +780,11 @@
         function initializeApp() {
             loadData();
             
-            // Assicurati che il piano sia generato la prima volta
-            generateWeeklyPlan(false);
+            // Assicurati che il piano sia generato la prima volta. 
+            // Se è vuoto, usa i default (3 brevi, 1 lunga).
+            if (weeklyPlan.short.length === 0 && weeklyPlan.long.length === 0) {
+                 generateWeeklyPlan(3, 1, true); // Usa i valori di default
+            }
             
             // Mostra la schermata iniziale (Sfide Settimanali).
             const initialButton = document.querySelector('.nav-btn.active');
