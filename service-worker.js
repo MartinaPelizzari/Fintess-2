@@ -1,11 +1,13 @@
 // Nome della cache per le risorse dell'app
-const CACHE_NAME = 'fitness-tracker-v2'; // Aggiornato il nome della cache
+// HO AGGIUNTO UN NUOVO NUMERO DI VERSIONE (V3) per forzare il Service Worker a reinstallarsi e cachare la NUOVA icona.
+const CACHE_NAME = 'fitness-tracker-v3'; 
 
 // Risorse essenziali da mettere in cache.
 const urlsToCache = [
     './', // Riferimento alla root (index.html)
     './index.html',
-    './manifest.json'
+    './manifest.json',
+    './icon.png' // L'ICONA PERSONALIZZATA DEVE ESSERE CACHATA
     // Non serve mettere in cache service-worker.js
 ];
 
